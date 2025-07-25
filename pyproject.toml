@@ -1,0 +1,50 @@
+[project]
+name = "mlx-voxtral"
+version = "0.0.1"
+description = "Voxtral audio processing and model implementation for Apple Silicon using MLX"
+readme = "README.md"
+license = { text = "Personal Use Only - See LICENSE file" }
+keywords = ["mlx", "voxtral", "whisper", "audio", "speech", "apple-silicon"]
+requires-python = ">=3.11"
+authors = [
+    { name = "Anchen Li" },
+]
+dependencies = [
+    "mistral-common>=1.8.2",
+    "mlx>=0.26.5",
+    "mlx-lm>=0.26.0",
+    "numpy>=1.22.4,<2.3.0",
+    "protobuf>=3.19.0,<6.0",
+    "soundfile>=0.12.0",
+    "soxr>=0.5.0",
+    "transformers>=4.54.0.dev0",
+]
+
+[project.urls]
+Repository = "https://github.com/mzbac/mlx.voxtral"
+Issues = "https://github.com/mzbac/mlx.voxtral/issues"
+
+[project.entry-points."console_scripts"]
+"mlx-voxtral.quantize" = "mlx_voxtral.scripts.quantize_voxtral:main"
+"mlx-voxtral.generate" = "mlx_voxtral.scripts.generate:main"
+
+[tool.uv]
+package = true
+
+
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+dev = [
+    "setuptools>=80.9.0",
+    "wheel>=0.45.1",
+]
+
+[tool.uv.sources]
+transformers = { git = "https://github.com/huggingface/transformers" }
+
+[tool.setuptools]
+packages = ["mlx_voxtral"]
