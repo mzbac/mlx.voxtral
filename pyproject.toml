@@ -1,6 +1,6 @@
 [project]
 name = "mlx-voxtral"
-version = "0.0.1"
+version = "0.0.2"
 description = "Voxtral audio processing and model implementation for Apple Silicon using MLX"
 readme = "README.md"
 license = { text = "Personal Use Only - See LICENSE file" }
@@ -47,4 +47,4 @@ dev = [
 transformers = { git = "https://github.com/huggingface/transformers" }
 
 [tool.setuptools]
-packages = ["mlx_voxtral"]
+packages = ["mlx_voxtral", "mlx_voxtral.models", "mlx_voxtral.scripts", "mlx_voxtral.utils"]
