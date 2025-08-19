@@ -1,6 +1,6 @@
 [project]
 name = "mlx-voxtral"
-version = "0.0.3"
+version = "0.0.4"
 description = "Voxtral audio processing and model implementation for Apple Silicon using MLX"
 readme = "README.md"
 license = { text = "Personal Use Only - See LICENSE file" }

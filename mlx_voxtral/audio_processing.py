@@ -541,6 +541,10 @@ class VoxtralFeatureExtractor:
         else:
             audio_array = raw_speech
 
+            # Convert stereo to mono if needed
+            if audio_array.ndim > 1:
+                audio_array = audio_array.mean(axis=1)
+                
             if sampling_rate is not None and sampling_rate != self.sampling_rate:
                 try:
                     import soxr
