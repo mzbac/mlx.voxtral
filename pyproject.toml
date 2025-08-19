@@ -1,6 +1,6 @@
 [project]
 name = "mlx-voxtral"
-version = "0.0.2"
+version = "0.0.3"
 description = "Voxtral audio processing and model implementation for Apple Silicon using MLX"
 readme = "README.md"
 license = { text = "Personal Use Only - See LICENSE file" }
@@ -17,7 +17,7 @@ dependencies = [
     "protobuf>=3.19.0,<6.0",
     "soundfile>=0.12.0",
     "soxr>=0.5.0",
-    "transformers>=4.54.0.dev0",
+    "transformers>=4.55.2",
 ]
 
 [project.urls]
@@ -31,8 +31,6 @@ Issues = "https://github.com/mzbac/mlx.voxtral/issues"
 [tool.uv]
 package = true
 
-
-
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
@@ -42,9 +40,6 @@ dev = [
     "setuptools>=80.9.0",
     "wheel>=0.45.1",
 ]
-
-[tool.uv.sources]
-transformers = { git = "https://github.com/huggingface/transformers" }
 
 [tool.setuptools]
 packages = ["mlx_voxtral", "mlx_voxtral.models", "mlx_voxtral.scripts", "mlx_voxtral.utils"]

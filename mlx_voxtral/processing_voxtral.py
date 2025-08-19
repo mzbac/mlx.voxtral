@@ -397,9 +397,11 @@ class VoxtralProcessor:
                         elif "base64" in item:
                             raise NotImplementedError("Base64 audio not yet supported")
                         
+                        sampling_rate = item.get("sampling_rate", None)
+                        
                         audio_features = self.feature_extractor(
                             audio_input,
-                            sampling_rate=16000,
+                            sampling_rate=sampling_rate,
                             return_tensors="mlx",
                         )
                         
