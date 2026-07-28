@@ -401,19 +401,11 @@ def process_audio_for_voxtral(
 
     n_chunks = padded_length // chunk_samples
 
-    mel_full, global_log_max = log_mel_spectrogram(audio_padded)
-
-    mel_chunks = []
-
-    for i in range(n_chunks):
-        start_sample = i * chunk_samples
-        end_sample = (i + 1) * chunk_samples
-        chunk_audio = audio_padded[start_sample:end_sample]
-
-        chunk_mel = log_mel_spectrogram(chunk_audio, global_max=global_log_max)
-        mel_chunks.append(chunk_mel[None, :, :])  
-
-    input_features = mx.concatenate(mel_chunks, axis=0) 
+    # One spectrogram over the whole audio, split afterwards -- see
+    # VoxtralFeatureExtractor._process_audio_array_with_chunking for why the
+    # split has to come second.
+    mel_full, _ = log_mel_spectrogram(audio_padded)  # [n_mels, n_frames]
+    input_features = mel_full.reshape(N_MELS, n_chunks, N_FRAMES).transpose(1, 0, 2)
 
     mx.eval(input_features)
 
@@ -455,8 +447,21 @@ class VoxtralFeatureExtractor:
         self.padding_value = padding_value
         self.nb_max_frames = self.chunk_length * self.sampling_rate // self.hop_length
 
-    def _process_audio_array_with_chunking(self, audio_array: np.ndarray) -> np.ndarray:
-        """Process audio array with proper chunking into 30-second segments."""
+    def _process_audio_array_with_chunking(self, audio_array: np.ndarray) -> mx.array:
+        """Mel features for an audio array, split into 30-second chunks.
+
+        The spectrogram is computed over the *whole* audio and only then split,
+        which is what Voxtral specifies: "we compute the log-Mel spectrogram for
+        the entire audio, but restrict the encoder to independently process each
+        30 second chunk" (arXiv:2507.13264 §2.1).
+
+        Computing it per chunk instead gets two things wrong. Every chunk would
+        be normalised against its own maximum -- the clamp is
+        `maximum(log_spec, log_max - 8)`, so a quiet chunk lands on a different
+        floor than the reference would give it -- and every chunk would get its
+        own `center=True` reflection padding, so its leading frames would be
+        built from reflected instead of real neighbouring audio.
+        """
         chunk_samples = self.chunk_length * self.sampling_rate
         n_samples = len(audio_array)
         n_chunks = int(np.ceil(n_samples / chunk_samples))
@@ -467,15 +472,10 @@ class VoxtralFeatureExtractor:
                 audio_array, (0, total_samples - n_samples), mode="constant"
             )
 
-        all_features = []
-        for i in range(n_chunks):
-            start = i * chunk_samples
-            end = start + chunk_samples
-            chunk = audio_array[start:end]
-            chunk_features = process_audio_chunk(chunk)
-            all_features.append(chunk_features)
-
-        return np.stack(all_features, axis=0)
+        mel, _ = log_mel_spectrogram(mx.array(audio_array))  # [n_mels, n_frames]
+        return mel.reshape(self.feature_size, n_chunks, self.nb_max_frames).transpose(
+            1, 0, 2
+        )
 
     def __call__(
         self,
@@ -559,8 +559,12 @@ class VoxtralFeatureExtractor:
 
             mel_features = self._process_audio_array_with_chunking(audio_array)
 
+        # _process_audio_array_with_chunking returns an mx.array, the file branch
+        # a numpy one, so both directions are spelled out.
         if return_tensors == "mlx":
             mel_features = mx.array(mel_features)
+        else:
+            mel_features = np.array(mel_features)
 
         return {"input_features": mel_features}
 
