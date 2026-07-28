@@ -3,6 +3,7 @@ from typing import Optional, Tuple, List, Dict, Any, Generator
 from dataclasses import dataclass
 
 import mlx.core as mx
+import numpy as np
 import mlx.nn as nn
 
 from .configuration_voxtral import (
@@ -336,7 +337,18 @@ class VoxtralForConditionalGeneration(nn.Module):
         input_features: Optional[mx.array] = None,
         inputs_embeds: Optional[mx.array] = None,
     ) -> mx.array:
-        """Merge text and audio embeddings."""
+        """Write the audio embeddings into the prompt at the [AUDIO] placeholders.
+
+        The placeholders are almost the whole prompt -- 375 tokens per 30 s of
+        input -- so this is done with one scatter per batch row rather than by
+        walking the sequence. transformers does the same thing in a single
+        `masked_scatter`.
+
+        `embed_tokens` returns bf16 while the projector returns float32, so the
+        result is promoted before scattering. Writing float32 audio embeddings
+        into a bf16 array would round every one of them away, and the only
+        visible symptom would be slightly different logits.
+        """
         if inputs_embeds is None:
             if input_ids is None:
                 raise ValueError("Either input_ids or inputs_embeds must be provided")
@@ -346,57 +358,23 @@ class VoxtralForConditionalGeneration(nn.Module):
             return inputs_embeds
 
         audio_embeds = self.get_audio_embeds(input_features)
+        expected_audio_tokens = audio_embeds.shape[1]
 
-        audio_token_mask = input_ids == self.config.audio_token_id
+        if inputs_embeds.dtype != audio_embeds.dtype:
+            inputs_embeds = inputs_embeds.astype(audio_embeds.dtype)
 
-        batch_size = input_ids.shape[0]
-        seq_length = input_ids.shape[1]
+        ids = np.array(input_ids)
+        for i in range(ids.shape[0]):
+            audio_positions = np.nonzero(ids[i] == self.config.audio_token_id)[0]
 
-        for i in range(batch_size):
-            batch_mask = audio_token_mask[i]
-            audio_positions = []
-            for j in range(seq_length):
-                if batch_mask[j]:
-                    audio_positions.append(j)
-
-            if len(audio_positions) > 0:
-                expected_audio_tokens = audio_embeds.shape[1]
-                if len(audio_positions) != expected_audio_tokens:
+            if audio_positions.size > 0:
+                if audio_positions.size != expected_audio_tokens:
                     raise ValueError(
                         f"Batch {i}: Expected {expected_audio_tokens} audio tokens "
-                        f"but found {len(audio_positions)} in input_ids"
+                        f"but found {audio_positions.size} in input_ids"
                     )
 
-                batch_embeds = inputs_embeds[i]
-                new_embeds = []
-                audio_idx = 0
-
-                for j in range(seq_length):
-                    if j in audio_positions:
-                        new_embeds.append(audio_embeds[i, audio_idx])
-                        audio_idx += 1
-                    else:
-                        new_embeds.append(batch_embeds[j])
-
-                new_batch_embeds = mx.stack(new_embeds)
-
-                if i == 0:
-                    inputs_embeds = mx.concatenate(
-                        [new_batch_embeds[None, :, :], inputs_embeds[1:]], axis=0
-                    )
-                elif i == batch_size - 1:
-                    inputs_embeds = mx.concatenate(
-                        [inputs_embeds[:i], new_batch_embeds[None, :, :]], axis=0
-                    )
-                else:
-                    inputs_embeds = mx.concatenate(
-                        [
-                            inputs_embeds[:i],
-                            new_batch_embeds[None, :, :],
-                            inputs_embeds[i + 1 :],
-                        ],
-                        axis=0,
-                    )
+                inputs_embeds[i, mx.array(audio_positions)] = audio_embeds[i]
 
         return inputs_embeds
 
