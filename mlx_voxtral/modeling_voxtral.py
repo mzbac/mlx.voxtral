@@ -349,6 +349,7 @@ class VoxtralForConditionalGeneration(nn.Module):
         into a bf16 array would round every one of them away, and the only
         visible symptom would be slightly different logits.
         """
+        caller_owns = inputs_embeds is not None
         if inputs_embeds is None:
             if input_ids is None:
                 raise ValueError("Either input_ids or inputs_embeds must be provided")
@@ -361,7 +362,12 @@ class VoxtralForConditionalGeneration(nn.Module):
         expected_audio_tokens = audio_embeds.shape[1]
 
         if inputs_embeds.dtype != audio_embeds.dtype:
-            inputs_embeds = inputs_embeds.astype(audio_embeds.dtype)
+            inputs_embeds = inputs_embeds.astype(audio_embeds.dtype)  # copies
+        elif caller_owns:
+            # The scatter below writes in place and that is visible through the
+            # caller's own reference. The previous implementation built a new
+            # array, so keep it that way for an array we did not create.
+            inputs_embeds = mx.array(inputs_embeds)
 
         ids = np.array(input_ids)
         for i in range(ids.shape[0]):
