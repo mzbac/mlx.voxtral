@@ -31,7 +31,7 @@ from .modeling_voxtral import (
 )
 from .processing_voxtral import VoxtralProcessor
 
-__version__ = "0.0.5"
+__version__ = "0.0.6"
 
 __all__ = [
     # Audio processing
