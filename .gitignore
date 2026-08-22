@@ -5,6 +5,7 @@ build/
 dist/
 wheels/
 *.egg-info
+.pytest_cache/
 
 # Virtual environments
 .venv
@@ -17,3 +18,5 @@ temp
 CLAUDE.md
 docs
 quantized_models
+.ds4/
+e2e_results/

@@ -27,7 +27,7 @@ from mlx_voxtral.quantization import (
     compute_bits_per_weight,
     voxtral_mixed_quantization_predicate,
 )
-from mlx_lm.utils import get_model_path
+from mlx_lm.utils import hf_repo_to_path
 
 
 def main():
@@ -144,7 +144,7 @@ def main():
     if Path(args.model).exists():
         model_path = Path(args.model)
     else:
-        model_path, _ = get_model_path(args.model)
+        model_path = hf_repo_to_path(args.model)
     
     # Copy all necessary files for the processor and tokenizer
     logger.info("Copying tokenizer and processor files...")

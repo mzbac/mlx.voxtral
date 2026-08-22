@@ -3,7 +3,6 @@ from typing import Optional, Tuple, List, Dict, Any, Generator
 from dataclasses import dataclass
 
 import mlx.core as mx
-import numpy as np
 import mlx.nn as nn
 
 from .configuration_voxtral import (
@@ -339,17 +338,16 @@ class VoxtralForConditionalGeneration(nn.Module):
     ) -> mx.array:
         """Write the audio embeddings into the prompt at the [AUDIO] placeholders.
 
-        The placeholders are almost the whole prompt -- 375 tokens per 30 s of
-        input -- so this is done with one scatter per batch row rather than by
-        walking the sequence. transformers does the same thing in a single
-        `masked_scatter`.
+        The placeholders are most of the prompt (375 tokens per 30 s of input),
+        so this is done in one vectorized `where` rather than walking the
+        sequence or round-tripping through numpy. The audio features describe
+        one stream shared by every batch row, so the same audio block is
+        gathered and broadcast into each row.
 
         `embed_tokens` returns bf16 while the projector returns float32, so the
-        result is promoted before scattering. Writing float32 audio embeddings
-        into a bf16 array would round every one of them away, and the only
-        visible symptom would be slightly different logits.
+        result is promoted to keep the float32 audio embeddings from being
+        rounded to bf16.
         """
-        caller_owns = inputs_embeds is not None
         if inputs_embeds is None:
             if input_ids is None:
                 raise ValueError("Either input_ids or inputs_embeds must be provided")
@@ -358,31 +356,38 @@ class VoxtralForConditionalGeneration(nn.Module):
         if input_features is None or input_ids is None:
             return inputs_embeds
 
+        audio_mask = input_ids == self.config.audio_token_id
+        audio_counts = audio_mask.sum(axis=1)
+        if audio_counts.max() == 0:
+            return inputs_embeds
+
         audio_embeds = self.get_audio_embeds(input_features)
         expected_audio_tokens = audio_embeds.shape[1]
+        if audio_embeds.shape[0] != 1:
+            raise ValueError(
+                f"Expected a single audio stream but got a batch of "
+                f"{audio_embeds.shape[0]}"
+            )
+
+        invalid = (audio_counts != 0) & (audio_counts != expected_audio_tokens)
+        if mx.any(invalid):
+            i = int(mx.argmax(invalid))
+            raise ValueError(
+                f"Batch {i}: Expected {expected_audio_tokens} audio tokens "
+                f"but found {int(audio_counts[i])} in input_ids"
+            )
 
         if inputs_embeds.dtype != audio_embeds.dtype:
-            inputs_embeds = inputs_embeds.astype(audio_embeds.dtype)  # copies
-        elif caller_owns:
-            # The scatter below writes in place and that is visible through the
-            # caller's own reference. The previous implementation built a new
-            # array, so keep it that way for an array we did not create.
-            inputs_embeds = mx.array(inputs_embeds)
+            inputs_embeds = inputs_embeds.astype(audio_embeds.dtype)
 
-        ids = np.array(input_ids)
-        for i in range(ids.shape[0]):
-            audio_positions = np.nonzero(ids[i] == self.config.audio_token_id)[0]
+        # Rank each audio token within its row, gather the matching audio
+        # embedding, and write it in with a single `where`.
+        rank = mx.cumsum(audio_mask, axis=1) - 1
+        safe_rank = mx.maximum(rank, 0)
+        gathered = mx.take(audio_embeds[0], safe_rank.reshape(-1), axis=0)
+        gathered = gathered.reshape(input_ids.shape[0], input_ids.shape[1], -1)
 
-            if audio_positions.size > 0:
-                if audio_positions.size != expected_audio_tokens:
-                    raise ValueError(
-                        f"Batch {i}: Expected {expected_audio_tokens} audio tokens "
-                        f"but found {audio_positions.size} in input_ids"
-                    )
-
-                inputs_embeds[i, mx.array(audio_positions)] = audio_embeds[i]
-
-        return inputs_embeds
+        return mx.where(audio_mask[..., None], gathered, inputs_embeds)
 
     def __call__(
         self,
