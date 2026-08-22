@@ -239,7 +239,7 @@ outputs = model.generate(
 
 ## License
 
-see LICENSE file for details.
+This project is licensed under the [MIT License](LICENSE).
 
 ## Acknowledgments
 

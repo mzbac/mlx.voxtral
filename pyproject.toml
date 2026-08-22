@@ -1,9 +1,10 @@
 [project]
 name = "mlx-voxtral"
-version = "0.0.4"
+version = "0.0.5"
 description = "Voxtral audio processing and model implementation for Apple Silicon using MLX"
 readme = "README.md"
-license = { text = "Personal Use Only - See LICENSE file" }
+license = "MIT"
+license-files = ["LICENSE"]
 keywords = ["mlx", "voxtral", "whisper", "audio", "speech", "apple-silicon"]
 requires-python = ">=3.11"
 authors = [
