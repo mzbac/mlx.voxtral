@@ -481,12 +481,7 @@ class VoxtralForConditionalGeneration(nn.Module):
             raise ValueError("input_ids must be provided")
             
         if stop_tokens is None:
-            # </s>, [/INST], <pad>. <pad> is id 11, NOT 32000: Voxtral's
-            # Tekken vocabulary has 131072 entries of which only the first
-            # 1000 are control tokens, and 32000 is the ordinary text token
-            # " Capital". Stopping on it truncates any transcript containing
-            # that word -- silently, since the result is clean prose that
-            # merely ends early.
+            # </s>, [/INST], <pad>.
             stop_tokens = [2, 4, 11]
         
         inputs_embeds = self._merge_input_embeddings(
